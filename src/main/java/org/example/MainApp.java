@@ -8,5 +8,7 @@ public class MainApp {
             board.lifeCycle();
             Thread.sleep(1_000);
         } while (!board.periodicConfiguration && !board.stableConfiguration && !board.allDead);
+
+        System.out.println("End!");
     }
 }
