@@ -3,15 +3,15 @@ package org.example;
 import java.util.ArrayList;
 
 public class Board {
-    char[][] board;
+    Cells[][] board;
     final boolean circular;
     boolean periodicConfiguration, stableConfiguration, allDead;
 
-    private ArrayList<ArrayList<Double>> allCycles;
+    private ArrayList<ArrayList<Cells>> allCycles;
 
     Board(int row, int column, int populationPercent, boolean circular) {
         periodicConfiguration = stableConfiguration = allDead = false;
-        board = new char[row][column];
+        board = new Cells[row][column];
         allCycles = new ArrayList<>();
 
         firstGeneration(populationPercent);
@@ -20,15 +20,16 @@ public class Board {
 
     private void firstGeneration(int populationPercent) {
 
-        ArrayList<Double> alivePoints = new ArrayList<>();
+        ArrayList<Cells> alivePoints = new ArrayList<>();
 
         for (int rowIndex = 0; rowIndex < board.length; rowIndex++) {
             for (int columnIndex = 0; columnIndex < board[rowIndex].length; columnIndex++) {
                 if (Math.random() < (populationPercent / 100.0)) {
-                    board[rowIndex][columnIndex] = 'X';
-                    alivePoints.add(Double.valueOf(rowIndex + "." + columnIndex));
+                    Cells cell = new Cells(true);
+                    board[rowIndex][columnIndex] = cell;
+                    alivePoints.add(cell);
                 } else {
-                    board[rowIndex][columnIndex] = '.';
+                    board[rowIndex][columnIndex] = new Cells(false);
                 }
             }
         }
@@ -46,49 +47,18 @@ public class Board {
 */
 
         int aliveNeighbors;
+        Cells cell;
 
-        for (int rowIndex = 0; rowIndex < board.length; rowIndex++) {
-            for (int columnIndex = 0; columnIndex < board[rowIndex].length; columnIndex++) {
-                aliveNeighbors = board[rowIndex][columnIndex] == 'X' ? -1 : 0; //exclude ourselves
+        for (int row = 0; row < board.length; row++) {
+            for (int column = 0; column < board[row].length; column++) {
+                cell = board[row][column];
 
-                if (circular) {
-                    int[] neighborsRowsIndexArray = {rowIndex == 0 ? board.length - 1 : rowIndex - 1,
-                            rowIndex,
-                            rowIndex == board.length - 1 ? 0 : rowIndex + 1};
+                aliveNeighbors = (cell.isAliveNow(false) ? -1 : 0) + countAliveNeighbors(row, column); //exclude ourselves
 
-                    int[] neighborsColumnsIndexArray = {columnIndex == 0 ? board[rowIndex].length - 1 : columnIndex - 1,
-                            columnIndex,
-                            columnIndex == board[rowIndex].length - 1 ? 0 : columnIndex + 1};
-
-                    for (int neighborRow : neighborsRowsIndexArray) {
-                        for (int neighborColumn : neighborsColumnsIndexArray) {
-                            if (board[neighborRow][neighborColumn] == 'X' || board[neighborRow][neighborColumn] == 'd') {
-                                aliveNeighbors++;
-                            }
-                        }
-                    }
-                } else {
-                    int iFrom, iTo, jFrom, jTo;
-
-                    iFrom = rowIndex == 0 ? 0 : -1;
-                    iTo = rowIndex == board.length - 1 ? 1 : 2;
-
-                    jFrom = columnIndex == 0 ? 0 : -1;
-                    jTo = columnIndex == board[rowIndex].length - 1 ? 1 : 2;
-
-                    for (int i = iFrom; i < iTo; i++) {
-                        for (int j = jFrom; j < jTo; j++) {
-                            if (board[rowIndex + i][columnIndex + j] == 'X' || board[rowIndex + i][columnIndex + j] == 'd') {
-                                aliveNeighbors++;
-                            }
-                        }
-                    }
-                }
-
-                if (board[rowIndex][columnIndex] == '.' && aliveNeighbors == 3) {
-                    board[rowIndex][columnIndex] = 'a';
-                } else if (board[rowIndex][columnIndex] == 'X' && (aliveNeighbors < 2 || aliveNeighbors > 3)) {
-                    board[rowIndex][columnIndex] = 'd';
+                if (cell.isDeadNow() && aliveNeighbors == 3) {
+                    cell.willAwakeNextCycle();
+                } else if (cell.isAliveNow(false) && (aliveNeighbors < 2 || aliveNeighbors > 3)) {
+                    cell.willDieNextCycle();
                 }
             }
         }
@@ -96,19 +66,58 @@ public class Board {
         print();
     }
 
-    private void updateBoard() {
-        ArrayList<Double> alivePoints = new ArrayList<>();
+    private int countAliveNeighbors(int row, int column) {
+        int aliveNeighbors = 0;
 
-        for (int rowIndex = 0; rowIndex < board.length; rowIndex++) {
-            for (int columnIndex = 0; columnIndex < board[rowIndex].length; columnIndex++) {
-                if (board[rowIndex][columnIndex] == 'a') {
-                    board[rowIndex][columnIndex] = 'X';
-                } else if (board[rowIndex][columnIndex] == 'd') {
-                    board[rowIndex][columnIndex] = '.';
+        if (circular) {
+            int[] neighborsRowsIndexArray = {row == 0 ? board.length - 1 : row - 1,
+                    row,
+                    row == board.length - 1 ? 0 : row + 1};
+            int[] neighborsColumnsIndexArray = {column == 0 ? board[row].length - 1 : column - 1,
+                    column,
+                    column == board[row].length - 1 ? 0 : column + 1};
+
+            for (int neighborRow : neighborsRowsIndexArray) {
+                for (int neighborColumn : neighborsColumnsIndexArray) {
+                    if (board[neighborRow][neighborColumn].isAliveNow(true)) {
+                        aliveNeighbors++;
+                    }
+                }
+            }
+        } else {
+            int iFrom, iTo, jFrom, jTo;
+
+            iFrom = row == 0 ? 0 : -1;
+            iTo = row == board.length - 1 ? 1 : 2;
+
+            jFrom = column == 0 ? 0 : -1;
+            jTo = column == board[row].length - 1 ? 1 : 2;
+
+            for (int i = iFrom; i < iTo; i++) {
+                for (int j = jFrom; j < jTo; j++) {
+                    if (board[row + i][column + j].isAliveNow(true)) {
+                        aliveNeighbors++;
+                    }
+                }
+            }
+        }
+
+        return aliveNeighbors;
+    }
+
+    private void updateBoard() {
+        ArrayList<Cells> alivePoints = new ArrayList<>();
+
+        for (Cells[] cells : board) {
+            for (Cells value : cells) {
+                if (value.isAwakeNextCycle()) {
+                    value.makeLiveNow();
+                } else if (value.isDieNextCycle()) {
+                    value.makeDeadNow();
                 }
 
-                if (board[rowIndex][columnIndex] == 'X') {
-                    alivePoints.add(Double.valueOf(rowIndex + "." + columnIndex));
+                if (value.isAliveNow(false)) {
+                    alivePoints.add(value);
                 }
             }
         }
@@ -116,7 +125,7 @@ public class Board {
         checkConfiguration(alivePoints);
     }
 
-    private void checkConfiguration(ArrayList<Double> alivePoints) {
+    private void checkConfiguration(ArrayList<Cells> alivePoints) {
         if (alivePoints.size() == 0) {
             allDead = true;
             System.out.println("Sad but everyone is dead.");
@@ -124,7 +133,7 @@ public class Board {
             stableConfiguration = true;
             System.out.println("This configuration is stable.");
         } else {
-            for (ArrayList<Double> list : allCycles) {
+            for (ArrayList<Cells> list : allCycles) {
                 if (alivePoints.equals(list)) {
                     periodicConfiguration = true;
                     System.out.println("This configuration is periodical.");
@@ -138,9 +147,9 @@ public class Board {
     }
 
     private void print() {
-        for (char[] row : board) {
-            for (char column : row) {
-                System.out.print(column + " ");
+        for (Cells[] cells : board) {
+            for (Cells value : cells) {
+                System.out.print(value.getStatus() + " ");
             }
             System.out.println();
         }
